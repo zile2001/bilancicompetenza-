@@ -327,11 +327,17 @@ function renderKPI(){
 }
 function renderUnknown(){
  const exp=[];
- MAPPING[currentStore].sheets.forEach(sh=>Object.values(sh.cells).forEach(d=>d.keys.forEach(k=>exp.push(k.replace("pre:","")))));
- const cov=c=>exp.some(k=>c===k||c.startsWith(k)||k.startsWith(c));
+ let coversImpianti=false;
+ MAPPING[currentStore].sheets.forEach(sh=>Object.values(sh.cells).forEach(d=>d.keys.forEach(k=>{
+  if(k.startsWith("pat:")){coversImpianti=true;return;}      // C46 copre IMPIANTI/MACCHINARI ovunque
+  exp.push(k.replace("pre:","").replace("mul:","").split("!")[0]);
+ })));
+ const isImpianti=descr=>{const d=(descr||"").toUpperCase();return d.includes("IMPIANT")||d.includes("MACCHINAR");};
+ const cov=(c,descr)=> (coversImpianti && isImpianti(descr)) || exp.some(k=>k && (c===k||c.startsWith(k)||k.startsWith(c)));
  const out=[];
  const scan=(p,side)=>{Object.keys(p).forEach(c=>{
-  if(c.length<=2||cov(c))return;const r=p[c];if(r.val==null)return;
+  if(c.length<=2)return;const r=p[c];if(r.val==null)return;
+  if(cov(c,r.descr))return;
   out.push({side,c,d:r.descr,v:r.val});});};
  scan(parsed.costi,"COSTI");scan(parsed.ricavi,"RICAVI");
  out.sort((a,b)=>a.side===b.side?a.c.localeCompare(b.c):a.side.localeCompare(b.side));
@@ -393,11 +399,15 @@ function dl(){if(!lastBlob)return;const a=document.createElement("a");
 $("dlBtn").onclick=dl;
 $("exportBtn").onclick=()=>{
  const lines=[["Negozio","PuntoVendita","Lato","Codice","Descrizione","Importo","Stato"]];
- const exp=[];MAPPING[currentStore].sheets.forEach(sh=>Object.values(sh.cells).forEach(d=>d.keys.forEach(k=>exp.push(k.replace("pre:","")))));
- const cov=c=>exp.some(k=>c===k||c.startsWith(k)||k.startsWith(c));
+ const exp=[];let coversImpianti=false;
+ MAPPING[currentStore].sheets.forEach(sh=>Object.values(sh.cells).forEach(d=>d.keys.forEach(k=>{
+  if(k.startsWith("pat:")){coversImpianti=true;return;}
+  exp.push(k.replace("pre:","").replace("mul:","").split("!")[0]);})));
+ const isImpianti=descr=>{const d=(descr||"").toUpperCase();return d.includes("IMPIANT")||d.includes("MACCHINAR");};
+ const cov=(c,descr)=>(coversImpianti&&isImpianti(descr))||exp.some(k=>k&&(c===k||c.startsWith(k)||k.startsWith(c)));
  const dump=(p,side)=>Object.keys(p).sort().forEach(c=>{
   if(c.length<=2)return;const r=p[c];if(r.val==null)return;
-  lines.push([MAPPING[currentStore].label,"",side,c,(r.descr||"").replace(/"/g,"'"),fmtIT(r.val),cov(c)?"COPERTO":"NON MAPPATO"]);});
+  lines.push([MAPPING[currentStore].label,"",side,c,(r.descr||"").replace(/"/g,"'"),fmtIT(r.val),cov(c,r.descr)?"COPERTO":"NON MAPPATO"]);});
  dump(parsed.costi,"COSTI");dump(parsed.ricavi,"RICAVI");
  const csv="\uFEFF"+lines.map(r=>r.map(c=>`"${c}"`).join(";")).join("\r\n");
  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
